@@ -7,7 +7,7 @@ REGISTER datafu-pig-1.3.0-SNAPSHOT-jarjar.jar;
 define UnorderedPairs datafu.pig.bags.UnorderedPairs();
 define LSH datafu.pig.hash.lsh.CosineDistanceHash('5949', '500', '5', '0');
 
-REGISTER medicare-udf/target/medicare-udf-1.0-SNAPSHOT.jar;
+REGISTER pre-process/medicare-udf/target/medicare-udf-1.0-SNAPSHOT.jar;
 define SimUDF com.hortonworks.demo.SimUDF(); 
 
 inp = load 'medicare/npi-cpt-code-inx' using PigStorage('\t') as (npi: chararray, sp_inx: chararray, code_inx: chararray, count: float);
