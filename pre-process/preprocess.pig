@@ -4,11 +4,12 @@ raw = load 'medicare/raw_data' using PigStorage('\t') as (
 		nppes_entity_code, nppes_provider_street1, nppes_provider_street2, nppes_provider_city, nppes_provider_zip, nppes_provider_state,
 		nppes_provider_country, provider_type, medicare_participation_indicator, place_of_service, 
 		hcpcs_code: chararray, hcpcs_description: chararray, line_srvc_cnt: int, 
-		bene_unique_cnt, bene_day_srvc_cnt, 
-		average_Medicare_allowed_amt, stdev_Medicare_allowed_amt, 
-		average_submitted_chrg_amt, stdev_submitted_chrg_amt, 
-		average_Medicare_payment_amt, stdev_Medicare_payment_amt);
-data = foreach raw generate npi, provider_type as specialty, hcpcs_code as cpt, hcpcs_description as cpt_desc, line_srvc_cnt as num;
+		bene_unique_cnt: int, bene_day_srvc_cnt: int, 
+		average_Medicare_allowed_amt: float, stdev_Medicare_allowed_amt, 
+		average_submitted_chrg_amt: float, stdev_submitted_chrg_amt, 
+		average_Medicare_payment_amt: float, stdev_Medicare_payment_amt);
+data = foreach raw generate npi, provider_type as specialty, hcpcs_code as cpt, hcpcs_description as cpt_desc, 
+			    bene_day_srvc_cnt as count, average_submitted_chrg_amt as submitted, average_Medicare_payment_amt as paid;
 
 sp1 = foreach data generate specialty;
 sp2 = filter sp1 by specialty != '';
@@ -38,15 +39,15 @@ store npis into 'medicare/npi-mapping' using PigStorage('\t');
 t1 = join data by npi, npis by npi;
 t2 = join t1 by specialty, specialties by sp_name;
 t3 = join t2 by cpt, cpts by cpt_name;
-t4 = foreach t3 generate npi_index, sp_index, cpt_index, num;
+t4 = foreach t3 generate npi_index, sp_index, cpt_index, count, submitted, paid;
 t5 = group t4 by (npi_index, sp_index, cpt_index);
 
-t6 = foreach t5 generate group.npi_index as npi, group.sp_index as specialty, group.cpt_index as cpt, SUM($1.num) as count;
+t6 = foreach t5 generate group.npi_index as npi, group.sp_index as specialty, group.cpt_index as cpt, SUM($1.count) as count, SUM($1.submitted) as submitted, SUM($1.paid) as paid;
 rmf medicare/npi-cpt-code-inx
 store t6 into 'medicare/npi-cpt-code-inx' using PigStorage('\t'); 
 
 t7 = group data by (npi, specialty, cpt);
-t8 = foreach t7 generate group.npi as npi, group.specialty as specialty, group.cpt as cpt, SUM($1.num) as freq;
+t8 = foreach t7 generate group.npi as npi, group.specialty as specialty, group.cpt as cpt, SUM($1.count) as count, SUM($1.submitted) as submitted, SUM($1.paid) as paid;
 rmf medicare/npi-cpt-code
 store t8 into 'medicare/npi-cpt-code' using PigStorage('\t');
 

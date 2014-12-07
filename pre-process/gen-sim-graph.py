@@ -93,7 +93,7 @@ for code, size in `GroupSize(code, size)`:
 
     # We store the similarity scores for NPIs in this group.
     for npi1, npi2, sim in `NpiSimilarity(npi1, npi2, sim)`:
-        if sim>0.69:
+        if sim>0.75:
             f.write(str(npi1)+"\t"+str(npi2)+"\t"+str(sim)+"\n")
 
     `clear NpiGroup.
