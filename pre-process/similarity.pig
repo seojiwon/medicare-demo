@@ -1,57 +1,34 @@
 SET  pig.tmpfilecompression true
 SET  pig.tmpfilecompression.codec gzip
 SET  pig.cachedbag.memusage 0.8
-SET  mapreduce.map.memory.mb 5100
-SET  mapreduce.reduce.memory.mb 5100
-SET mapreduce.map.java.opts -Xmx4g
-SET mapreduce.reduce.java.opts -Xmx4g
 
 register 'pre-process/udfs.py' using org.apache.pig.scripting.jython.JythonScriptEngine as udfs;
 
-inp = load 'medicare/npi-cpt-code-inx' using PigStorage('\t') as (npi: chararray, sp_inx: chararray, code_inx: chararray, count: double, submitted: double, paid: double);
+INP = load 'medicare/npi-cpt-code' using PigStorage('\t') 
+				as (npi: chararray, sp_inx: chararray, code_inx: chararray, count: double);
 
-d1 = group inp by code_inx;
-d2 = foreach d1 generate group as code_inx, COUNT($1) as cpt_unique, SUM($1.count) as cpt_total;
-d3 = filter d2 by cpt_total <= 10000000;	-- Only keep CPTs where total count <= 10M
-d4 = join inp by code_inx, d3 by code_inx;
-d5 = foreach d4 generate npi, inp::code_inx as code_inx, count, submitted, paid;
-d6 = group d5 by npi;
-d7 = foreach d6 generate group as npi, COUNT($1) as npi_count;
-d8 = filter d7 by npi_count >= 3;
-d9 = join d5 by npi, d8 by npi;
-data = foreach d9 generate d8::npi as npi, (int)d5::code_inx as cpt_inx, count, submitted, paid;
-
-DEFINE gen_graph(data_in) returns out {
-	grp1 = group $data_in by npi parallel 40;
-	pts = foreach grp1 generate group as npi, $data_in.(cpt_inx,val) as cpt_vec;
-	pts_top = foreach pts generate npi, cpt_vec, FLATTEN(udfs.top_cpt(cpt_vec)) as (cpt_inx: int, val: double);
-	p1 = foreach pts_top generate npi, cpt_vec, cpt_inx;
-	p2 = group p1 by cpt_inx parallel 40;
-	p3 = foreach p2 generate p1.(npi, cpt_vec) as npi_bag;
-	p4 = foreach p3 generate FLATTEN(npi_bag) as (npi: chararray, cpt_vec), npi_bag;
-	$out = foreach p4 generate npi as npi1, FLATTEN(udfs.similarNpi(npi, cpt_vec, npi_bag, 0.75)) as npi2;
-};
+-- Filter out noisy CPT and NPI codes
+CODE_GRP = group INP by code_inx;
+CNT_PER_CODE = foreach CODE_GRP generate group as code_inx, SUM($1.count) as cpt_total;
+VALID_CODES = filter CNT_PER_CODE by cpt_total <= 10000000;	-- Only keep CPTs where total count <= 10M
+INP_JOINED = join INP by code_inx, VALID_CODES by code_inx;
+INP_WITH_VALID_CODES = foreach INP_JOINED generate npi, INP::code_inx as code_inx, count;
+NPI_GRP = group INP_WITH_VALID_CODES by npi;
+CNT_PER_NPI = foreach NPI_GRP generate group as npi, COUNT($1) as npi_count;
+VALID_NPIS = filter CNT_PER_NPI by npi_count >= 3;
+INP_JOINED2 = join INP_WITH_VALID_CODES by npi, VALID_NPIS by npi;
+DATA = foreach INP_JOINED2 generate VALID_NPIS::npi as npi, (int)INP_WITH_VALID_CODES::code_inx as cpt_inx, count;
 
 -- Generate graph with counts
-v_cnt = foreach data generate npi, cpt_inx, (double)count as val;
-out = gen_graph(v_cnt);
-store out into 'medicare/graph-count' using PigStorage('\t');
-exec;
+GRP1 = group DATA by npi parallel 40;
+PTS = foreach GRP1 generate group as npi, DATA.(cpt_inx, count) as cpt_vec;
+PTS_TOP = foreach PTS generate npi, cpt_vec, FLATTEN(udfs.top_cpt(cpt_vec)) as (cpt_inx: int, count: double);
+PTS_TOP_CPT = foreach PTS_TOP generate npi, cpt_vec, cpt_inx;
+CPT_GRP = group PTS_TOP_CPT by cpt_inx parallel 40;
+NPI_CLUST = foreach CPT_GRP generate PTS_TOP_CPT.(npi, cpt_vec) as npi_bag;
+NPI_AND_CLUST = foreach NPI_CLUST generate FLATTEN(npi_bag) as (npi: chararray, cpt_vec), npi_bag;
+OUT = foreach NPI_AND_CLUST generate npi as npi1, FLATTEN(udfs.similarNpi(npi, cpt_vec, npi_bag, 0.75)) as npi2;
 
--- Generate graph with sqrt counts
-v_sqrt = foreach data generate npi, cpt_inx, SQRT(count) as val;
-out = gen_graph(v_sqrt);
-store out into 'medicare/graph-sqrtcount' using PigStorage('\t');
-exec;
-
--- Generate graph with submitted amount
-v_sub = foreach data generate npi, cpt_inx, (double)submitted as val;
-out = gen_graph(v_sub);
-store out into 'medicare/graph-submitted' using PigStorage('\t');
-exec;
-
--- Generate graph with paid amount
-v_paid = foreach data generate npi, cpt_inx, (double)paid as val;
-out = gen_graph(v_paid);
-store out into 'medicare/graph-paid' using PigStorage('\t');
+rmf medicare/graph
+store OUT into 'medicare/graph' using PigStorage('\t');
 
