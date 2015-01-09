@@ -1,13 +1,8 @@
 
 # copy raw data file into HDFS without header files
-hadoop fs -mkdir medicare
-if hadoop fs -test -e medicare/raw_data; then
-	echo "No need to copy file"
-else
-	cat data/Medicare-Physician-and-Other-Supplier-PUF-CY2012.txt | sed '1,2d' > raw_data.txt
-	hadoop fs -put raw_data.txt medicare/raw_data
-	rm raw_data.txt
-fi
+python pre-process/getspec.py
+hadoop fs -rm -r medicare/raw_data
+hadoop fs -put data/raw_data.txt medicare/raw_data
 
 # Run pre-process and similarity PIG scripts
 pig pre-process/preprocess.pig
@@ -18,3 +13,4 @@ hadoop fs -getmerge medicare/specialty data/specialty.txt
 hadoop fs -getmerge medicare/hcpcs-code data/hcpcs-code.txt
 hadoop fs -getmerge medicare/npi-cpt-code data/npi-cpt-code.txt
 hadoop fs -getmerge medicare/graph data/graph.txt
+hadoop fs -getmerge medicare/graph-sqrt data/graph-sqrt.txt
