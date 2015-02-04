@@ -3,9 +3,9 @@ import sys
 
 MAX_NPI_ID = 880643
 MAX_HCPCS_CODE_ID = 5948
+MAX_SPECIALTY_ID = 175
 
 print "Reading specialty.txt"
-MAX_SPECIALTY_ID = 175
 # specialty.txt:  specialty-id <tab> description
 # Specialty table maps specialty id to its description.
 `Specialty(int specialty:0..$MAX_SPECIALTY_ID, String descr).
@@ -14,16 +14,9 @@ MAX_SPECIALTY_ID = 175
                            spec=$toInt(_spec).`
 
 specialties = []
-#specialtyDescrs = ["Ophthalmology", "Otolaryngology", "Gastroenterology", "Oral Surgery (dentists only)", 
-#                   "Dermatology", "Physical Therapist", "Pathology", "Urology", 
-#                   "Rheumatology", "Obstetrics/Gynecology", "Podiatry", "Hematology",
-#                   "Gynecological/Oncology", "Psychiatry", "Allergy/Immunology", "Hematology/Oncology",
-#                   "Anesthesiology", "Pulmonary Disease", "Nephrology"]
-#specialtyDescrs = specialtyDescrs[:5]
 specialtyDescrs = ["Dentist", "Urology", "Radiology", "Pediatrics", "Podiatrist", "Optometrist", "Psychologist", "Ophthalmology",
                    "Otolaryngology", "Plastic Surgery", "Pathology", "Dermatology", "Pain Medicine"] 
 for descr in specialtyDescrs:
-    print descr
     num, _ = `Specialty(num, $descr)`.next()
     specialties.append(num)
 
@@ -54,7 +47,7 @@ print "Reading npi-cpt-code.txt"
 # Doctor table stores the information (doctor, specialty, cpt code, count)
 `Doctor(int npi:0..$MAX_NPI_ID, int specialty, (int code, int freq)).
  Doctor(npi, specialty, code, freq) :- l=$read("data/npi-cpt-code.txt"), 
-                                       (_npi, _spec, _dummy1, _dummy2, _code, _freq) = $split(l, "\t"),
+                                       (_npi, _spec, _code, _freq) = $split(l, "\t"),
                                        npi = $toInt(_npi),
                                        specialty = $toInt(_spec),
                                        code = $toInt(_code),
@@ -143,6 +136,9 @@ for i in range(len(specialties)):
     falsePositives.add(74) 	# Physician Assistant
     falsePositives.add(46) 	# Family Medicine
     falsePositives.add(69) 	# Nurse Practitioner 
+		falsePositives.add(111) # Clinicians Nurse Specialist
+		falsePositives.add(29)  # Nurse's aid
+		falsePositives.add(109) # Skilled Nursing Facility
     falsePositives.add(172) # Student in an Organized Health Care Education/Training Program
     falsePositives.add(60) 	# Registered Nurse
     falsePositives.add(68) 	# Emergency Medicine

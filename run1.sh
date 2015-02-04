@@ -5,7 +5,8 @@ hadoop fs -rm -r medicare/raw_data
 hadoop fs -put data/raw_data.txt medicare/raw_data
 
 # Run pre-process to compute similarity and generate graph structure using PIG
-pig pre-process/gen_graph.pig
+pig  pre-process/gen_graph.pig
+#pig -x tez pre-process/gen_graph.pig
 
 # Copy output file to local disk to be used by socialite
 hadoop fs -getmerge medicare/npi-mapping data/npi-mapping.txt
