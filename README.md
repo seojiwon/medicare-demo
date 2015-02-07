@@ -26,6 +26,6 @@ Configuration
 
 * SociaLite
  - Edit conf/socialite-env.sh to change settings.
-   Set JAVA_HOME to point to your Java installation path (e.g. /usr/lib/jvm/jdk1.7.0_51/)
-   Set HADOOP_HOME to point to your Hadoop installation path.
-   Set SOCIALITE_HEAPSIZE to change the heap size of SociaLite runtime. (e.g. 24000 for 24GB)
+   -  Set JAVA_HOME to point to your Java installation path (e.g. /usr/lib/jvm/jdk1.7.0_51/)
+   -  Set HADOOP_HOME to point to your Hadoop installation path.
+   -  Set SOCIALITE_HEAPSIZE to change the heap size of SociaLite runtime. (e.g. 24000 for 24GB)
