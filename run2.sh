@@ -1,2 +1,2 @@
-./socialite/bin/socialite group-pagerank.py data/graph.txt > results.txt
+./socialite/bin/socialite find-anomalies.py | tee results.txt
 

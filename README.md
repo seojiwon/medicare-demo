@@ -9,6 +9,8 @@ The details of the algorithm is described in Hortonworks blog (XXX: link here?)
 Run
 ====
 
+Run these two scripts to preprocess the data and apply the algorithm.
+
 * run1.sh
  - Performs preprocessing. It uses Pig scripts in pre-process/ to clean the data and generate NPI similarity graph.
 
@@ -19,3 +21,11 @@ Run
 
 Configuration
 ====
+* Hadoop/Pig
+ - 
+
+* SociaLite
+ - Edit conf/socialite-env.sh to change settings.
+   Set JAVA_HOME to point to your Java installation path (e.g. /usr/lib/jvm/jdk1.7.0_51/)
+   Set HADOOP_HOME to point to your Hadoop installation path.
+   Set SOCIALITE_HEAPSIZE to change the heap size of SociaLite runtime. (e.g. 24000 for 24GB)
