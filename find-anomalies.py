@@ -5,7 +5,7 @@ MAX_NPI_ID = 880643
 MAX_CPT_CODE = 5948
 MAX_SPECIALTY_ID = 175
 
-path = "file://data/"
+path = "hdfs://data/"
 
 print "Reading specialty.txt"
 # specialty.txt:  specialty-id <tab> description
@@ -93,10 +93,10 @@ for i in range(len(specialties)):
     #sys.stdout.write("..")
 
     # Initially we assign the PageRank value of 1/N to source nodes, where N is the number of source nodes.
-    `Rank(npi, 0, r) :- Source(npi), r=1.0f/$N.`
+    `Rank(source_npi, 0, pr) :- Source(source_npi), pr=1.0f/$N.`
     for i in range(10):
-        `Rank(target, $i+1, $sum(r)) :- Source(target), r = 0.2f*1.0f/$N ;
-                                :- Rank(src, $i, r1), r1>1e-8, EdgeCnt(src, cnt), r = 0.8f*r1/cnt, Graph(src, target).`
+        `Rank(node, $i+1, $sum(pr)) :- Source(node), pr = 0.2f*1.0f/$N ;
+                                  :- Rank(src, $i, pr1), pr1>1e-8, EdgeCnt(src, cnt), pr = 0.8f*pr1/cnt, Graph(src, node).`
 
         # The first body represents the jump to one of source nodes with probability 0.2.
         # The second body computes the random walk from src NPI to target NPI.
