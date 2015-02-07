@@ -6,6 +6,22 @@ We use Hadoop Pig and SociaLite (open-source graph analysis platform) to preproc
 The details of the algorithm is described in Hortonworks blog (XXX: link here?)
 
 
+Installation
+====
+* Hadoop/Pig
+ - 
+
+* SociaLite
+ - Edit conf/socialite-env.sh to change settings.
+
+   -  Set JAVA_HOME to point to your Java installation path (e.g. /usr/lib/jvm/jdk1.7.0_51/)
+
+   -  Set HADOOP_HOME to point to your Hadoop installation path.
+
+   -  Set SOCIALITE_HEAPSIZE to change the heap size of SociaLite runtime. (e.g. 24000 for 24GB)
+
+ -  Go to socialite/ directory and enter ant to build SociaLite (requires Apache-ant).
+
 Run
 ====
 
@@ -19,14 +35,3 @@ Run these two scripts to preprocess the data and apply the algorithm.
    SociaLite script (find-anomalies.py) implements the algorithm.
 
 
-Installation
-====
-* Hadoop/Pig
- - 
-
-* SociaLite
- - Edit conf/socialite-env.sh to change settings.
-   -  Set JAVA_HOME to point to your Java installation path (e.g. /usr/lib/jvm/jdk1.7.0_51/)
-   -  Set HADOOP_HOME to point to your Hadoop installation path.
-   -  Set SOCIALITE_HEAPSIZE to change the heap size of SociaLite runtime. (e.g. 24000 for 24GB)
-   -  Go to socialite/ directory and enter ant to build SociaLite (requires Apache-ant).
