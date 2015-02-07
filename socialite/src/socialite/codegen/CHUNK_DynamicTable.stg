@@ -1,0 +1,378 @@
+group dynamic-table;
+
+import "TableCommon.stg"
+
+dynamicTable(tableName, name, visitorClass, methods,
+            size, id,
+            columns, gbColumns, gbAggrColumn,
+			idxCols,
+			concurrent=false, multiSet=false, isNested=false) ::= <<
+<if(!isNested)>
+package socialite.tables;
+
+<importForTable()>
+<endif>
+
+// dynamicTable
+<if(!isNested)>public<endif> final class <name> extends AbstractTableInst {
+	private static final long serialVersionUID = 1;
+
+	public static int tableid() { return <id>; }
+	public static <name> create() { return new <name>(); }	
+	
+    static final class Node$Init extends Node {
+        static final int INIT_CHUNK_SIZE=4;
+        Node$Init() { super(INIT_CHUNK_SIZE); }
+        boolean isFull() {
+        	if (len \< CHUNK_SIZE) return false;
+        	return super.isFull();
+        }
+        int insert(<columns:{c|<c.type> a<i0>}; separator=", ">) {
+        	if (len == col0().length) {
+        		expand();
+        	}
+        	return super.insert(<columns:{c|a<i0>}; separator=", ">);
+        }
+        void expand() {
+        	int size = len*2;
+        	<columns:{c|<c.type>[] _col<i0> = new <c.type>[size];<\n>}>
+        	<columns:{c|System.arraycopy(col<i0>, 0, _col<i0>, 0, len);<\n>}>
+        	<columns:{c|col<i0> = _col<i0>;<\n>}>            
+        }
+    }
+    static class Node {
+	    static ConcurrentWeakQueue\<Node> pool = new ConcurrentWeakQueue\<Node>();
+	    static Node alloc() {
+	        Node n = pool.poll();
+	        if (n == null) {
+	            n = new Node();
+	        } else {
+	            n.init();
+	        }
+	        return n;
+	    }
+	    static void free(Node n) { pool.add(n); }
+
+        static final int CHUNK_SIZE=128;
+        
+	    <columns:{c|Object col<i0>;<\n>}>
+        <if(concurrent)>volatile<endif> int len;
+        <if(concurrent)>volatile<endif> Node next;
+
+        Node() { this(CHUNK_SIZE); }
+        Node(int capacity) {
+            <columns:{c|col<i0> = new <c.type>[capacity];<\n>}>
+        }
+        void init() {
+            len = 0;
+            next = null;
+        }
+        public void free() { Node.free(this); }
+
+        boolean isFull() { return len() >= col0().length; }
+        int len() { return len; }
+
+        <columns:{c|<c.type>[] col<i0>() { return (<c.type>[])col<i0>; \}<\n>}>
+
+        boolean contains(<columns:{c|<c.type> a<i0>}; separator=", ">, boolean[] dontcare) {
+            for (int i=0; i\<len(); i++) {
+                if (true<columns:{c|&& (dontcare[<i0>]||col<i0>()[i]<EqOpMap.(c.type)>(a<i0>))}>) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        boolean contains(<columns:{c|<c.type> a<i0>}; separator=", ">) {
+            for (int i=0; i\<len(); i++) {
+                if (true<columns:{c|&& col<i0>()[i]<EqOpMap.(c.type)>(a<i0>)}>) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        boolean contains_at(<columns:{c|<c.type> a<i0>}; separator=", ">, int at, boolean[] dontcare) {
+            int i = at;
+            return true<columns:{c|&& (dontcare[<i0>]||a<i0><EqOpMap.(c.type)>(col<i0>()[i]))}>;
+        }
+        boolean contains_at(<columns:{c|<c.type> a<i0>}; separator=", ">, int at) {
+            int i = at;
+            return true<columns:{c|&& a<i0><EqOpMap.(c.type)>(col<i0>()[i])}>;
+        }
+        int insert(<columns:{c|<c.type> a<i0>}; separator=", ">) {
+            int l = len();
+            assert l \< col0().length;
+            <columns:{c|col<i0>()[l] = a<i0>;<\n>}>
+            len = l+1;
+            return l;
+        }
+        boolean iterate(<visitorClass> v) {
+            int l = len();
+            for (int i=0; i\<l; i++) {
+                boolean cont = v.visit(<columns:{c|col<i0>()[i]}; separator=", ">);
+                if (!cont) return false;
+            }
+            return true;
+        }
+        boolean iterate_at(<visitorClass> v, int pos) {
+            int l = len();
+            assert pos \< l;
+            return v.visit(<columns:{c|col<i0>()[pos]}; separator=", ">);
+        }
+	}
+
+    <if(concurrent)>volatile<endif> Node head;
+    <if(concurrent)>volatile<endif> Node tail;
+	<idxCols:{ic|SChunkPosIndex index<ic.relPos>;<\n>}>
+<if(gbColumns)>
+	SChunkPosIndex groupbyMap;
+<endif>
+
+	public <name>() {
+		head = new Node$Init();
+		tail = head;
+		<idxCols:{ic|index<ic.relPos> = new SChunkPosIndex();<\n>}>
+	}
+	
+	public int id() { return <id>; }
+    public int size() { assert false; return -1; }
+    public String name() { return "<tableName>"; }
+
+    public boolean isEmpty() { return head.len() == 0; }
+	public String toString() {
+		String str="Table <tableName>(id=<id>):";
+		return str + head.toString();
+	}
+	public void clearQuick() { clear(); }
+	public void clear() {
+	    for (Node n=head; n!=null; n=n.next) {
+	        n.free();
+	    }
+	    head = tail = new Node$Init();
+		<idxCols:{ic|index<ic.relPos>.clear();<\n>}>
+		<if(gbColumns)>if(groupbyMap!=null) groupbyMap.clear();<endif>
+	}
+	
+	public boolean contains(<columns:{c|final <c.type> a<i0>};separator=", ">) {
+		<if(idxCols)>
+			Object val = index<first(idxCols).relPos>.get(a<first(idxCols).relPos>);
+			if (val == null) return false;
+			<if(rest(columns))>
+			if (val instanceof ChunkPos) {
+				ChunkPos chunkPos = (ChunkPos)val;
+		        Node n = (Node)chunkPos.getChunk();
+		        int pos = chunkPos.getPos();
+		        return n.contains_at(<columns:{c|a<i0>};separator=", ">, pos);
+			} else {
+				IndexPosList\<ChunkPos> posList = (IndexPosList\<ChunkPos>)val;
+				final boolean[] ret = new boolean[] {false};
+				posList.iterate(new ObjectVisitor() {
+		            public boolean visit(Object o) {
+		                ChunkPos chunkPos = (ChunkPos)o;
+		                Node n = (Node)chunkPos.getChunk();
+		                int pos = chunkPos.getPos();
+		                if (n.contains_at(<columns:{c|a<i0>};separator=", ">, pos)) {
+		                    ret[0] = true;
+		                    return false;
+		                }
+		                return true;
+		            }
+		        });
+		        return ret[0];
+			}
+			<else> // has only single column
+			return true;
+			<endif>
+		<else>
+		for (Node n=head; n!=null; n=n.next) {
+		    if (n.contains(<columns:{c|a<i0>};separator=", ">))
+		        return true;
+		}
+		return false;
+		<endif>
+	}
+	public boolean contains(<columns:{c|final <c.type> a<i0>};separator=", ">, final boolean[] dontcare) {
+		<if(idxCols)>
+		if (!dontcare[<first(idxCols).relPos>]) {
+            Object val = index<first(idxCols).relPos>.get(a<first(idxCols).relPos>);
+			if (val == null) return false;
+			<if(rest(columns))>
+			if (val instanceof ChunkPos) {
+				ChunkPos chunkPos = (ChunkPos)val;
+		        Node n = (Node)chunkPos.getChunk();
+		        int pos = chunkPos.getPos();
+		        return n.contains_at(<columns:{c|a<i0>};separator=", ">, pos, dontcare);
+			} else {
+				IndexPosList\<ChunkPos> posList = (IndexPosList\<ChunkPos>)val;
+				final boolean[] ret = new boolean[] {false};
+				posList.iterate(new ObjectVisitor() {
+		            public boolean visit(Object o) {
+		                ChunkPos chunkPos = (ChunkPos)o;
+		                Node n = (Node)chunkPos.getChunk();
+		                int pos = chunkPos.getPos();
+		                if (n.contains_at(<columns:{c|a<i0>};separator=", ">, pos, dontcare)) {
+		                    ret[0] = true;
+		                    return false;
+		                }
+		                return true;
+		            }
+		        });
+		        return ret[0];
+			}
+			<else> // has only single column
+			return true;
+			<endif>
+		}
+		<endif>
+		
+		for (Node n=head; n!=null; n=n.next) {
+            if (n.contains(<columns:{c|a<i0>};separator=", ">, dontcare))
+        	    return true;
+        }
+		return false;
+	}
+
+	void addToIndex(<idxCols:{ic|<ic.type> a<ic.relPos> ,}>ChunkPos chunkPos) {
+	    <idxCols:{ic|index<ic.relPos>.add(a<ic.relPos>, chunkPos);<\n>}>
+	}
+	void addToGroupbyMap(<gbColumns:{g|<g.type> a<g.relPos>,}>ChunkPos chunkPos) {
+	    <if(gbColumns)>
+	    	if (groupbyMap==null) return;
+     	<if(rest(gbColumns))>
+     	    Tuple<gbColumns:{g|_<TupleMap.(g.type)>}> groupbyTup = new Tuple<gbColumns:{g|_<TupleMap.(g.type)>}>();
+     		<gbColumns:{g|groupbyTup._<i0> = a<i0>;}; separator="\n">
+     		groupbyMap.add(groupbyTup, chunkPos);
+     	<else>
+     		groupbyMap.add(a0, chunkPos);
+     	<endif>
+     	<endif>
+	}
+
+	public boolean insert(<columns:{c|<c.type> a<i0>};separator=", ">) {
+	<if(!isNested && !multiSet)>
+		if (contains(<columns:{c|a<i0>};separator=",">)) return false;
+	<endif>
+	    if (tail.isFull()) {
+			Node n = Node.alloc();
+			tail.next = n;
+			tail = n;
+	    }
+        int pos = tail.insert(<columns:{c|a<i0>};separator=", ">);
+        ChunkPos chunkPos = <if(idxCols||gbColumns)>new ChunkPos(tail, pos);<else>null;<endif>
+        addToIndex(<idxCols:{ic|a<ic.relPos> ,}>chunkPos);
+        addToGroupbyMap(<gbColumns:{g|a<g.relPos>, }>chunkPos);
+		return true;
+	}
+	public boolean insertAtomic(<columns:{c|<c.type> a<i0>};separator=", ">) {
+        synchronized(this) {
+            return insert(<columns:{c|a<i0>};separator=", ">);
+        }
+    }
+
+<if(gbColumns)> //  if (gbColumns) [
+    <groupbyDyn()>
+<endif> // ] if(gbColumns)
+	
+	public void iterate(<visitorClass> v) {
+		for (Node n=head; n!=null; n=n.next) {
+		    boolean cont = n.iterate(v);
+		    if (!cont) return;
+		}
+	}
+<idxCols:{c|
+	public void iterate_by_<c.absPos>(<c.type> a, final <visitorClass> v) {
+		Object val = index<c.relPos>.get(a);
+		if (val==null) return;
+		
+		if (val instanceof ChunkPos) {
+			ChunkPos chunkPos = (ChunkPos)val;
+		    Node n = (Node)chunkPos.getChunk();
+		    n.iterate_at(v, chunkPos.getPos());
+		\} else {
+			IndexPosList\<ChunkPos> posList = (IndexPosList\<ChunkPos>)val;
+			posList.iterate(new ObjectVisitor() {
+	            public boolean visit(Object o) {
+	                ChunkPos chunkPos = (ChunkPos)o;
+		            Node n = (Node)chunkPos.getChunk();
+		            return n.iterate_at(v, chunkPos.getPos());
+		        \}
+		    \});
+		\}
+	\}
+}>
+<idxCols:{c|
+	public void iterate_part_from_<c.absPos>(<c.type> from, boolean inclusive, final <visitorClass> v) {
+        index<c.relPos>.iterateFrom(from, inclusive,
+            new ObjectVisitor() {
+                public boolean visit(Object o) {
+                    ChunkPos chunkPos = (ChunkPos)o;
+		            Node n = (Node)chunkPos.getChunk();
+		            return n.iterate_at(v, chunkPos.getPos());
+                \}
+            \});
+	\}
+	public void iterate_part_to_<c.absPos>(<c.type> to, boolean inclusive, final <visitorClass> v) {
+        index<c.relPos>.iterateTo(to, inclusive,
+            new ObjectVisitor() {
+                public boolean visit(Object o) {
+                    ChunkPos chunkPos = (ChunkPos)o;
+		            Node n = (Node)chunkPos.getChunk();
+		            return n.iterate_at(v, chunkPos.getPos());
+                \}
+            \});
+    \}
+    public void iterate_part_from_to_<c.absPos>(<c.type> from, boolean fromInclusive, <c.type> to, boolean toInclusive, final <visitorClass> v) {
+        index<c.relPos>.iterateFromTo(from, fromInclusive, to, toInclusive,
+            new ObjectVisitor() {
+                public boolean visit(Object o) {
+                    ChunkPos chunkPos = (ChunkPos)o;
+		            Node n = (Node)chunkPos.getChunk();
+		            return n.iterate_at(v, chunkPos.getPos());
+                \}
+            \});
+    \}
+}>
+	<methods;separator="\n">
+}
+>>
+getChunkPos() ::= <<
+<if(rest(gbColumns))>
+    Tuple<gbColumns:{g|_<TupleMap.(g.type)>}> groupbyTup = new Tuple<gbColumns:{g|_<TupleMap.(g.type)>}>();
+	<gbColumns:{g|groupbyTup._<i0> = a<i0>;}; separator="\n">
+	ChunkPos chunkPos = (ChunkPos)groupbyMap.get(groupbyTup);
+<else>
+    ChunkPos chunkPos =(ChunkPos)groupbyMap.get(a0);
+<endif>
+>>
+getNodeAndPos() ::= <<
+    Node n = (Node)chunkPos.getChunk();
+    int pos = chunkPos.getPos();
+>>
+
+groupbyDyn() ::= <<
+<if(gbColumns)>
+    public <gbAggrColumn.type> groupby(<gbColumns:{g|<g.type> a<i0>};separator=", ">) {
+    	if (groupbyMap==null) { groupbyMap = new SChunkPosIndex(); }
+    	<getChunkPos()>
+		<getNodeAndPos()>
+		return n.col<gbAggrColumn.relPos>()[pos];
+	}
+	public boolean contains(<gbColumns:{g|<g.type> a<i0>};separator=", ">) {
+	    if (groupbyMap==null) { groupbyMap = new SChunkPosIndex(); }
+	    <getChunkPos()>
+	    return chunkPos != null;
+	}
+	public boolean update(<columns:{c|<c.type> a<i0>}; separator=", ">) {
+        if (groupbyMap==null) { groupbyMap = new SChunkPosIndex(); }
+        <getChunkPos()>
+        if (chunkPos == null)
+            return insert(<columns:{c|a<i0>}; separator=", ">);
+	    <getNodeAndPos()>
+	    <columns:{c|n.col<i0>()[pos] = a<i0>;<\n>}>
+		return true;
+	}
+<else> // if (!gbColumns) [
+	public boolean update(<columns:{c|<c.type> a<i0>}; separator=", ">) {
+		return insert(<columns:{c|a<i0>}; separator=", ">);
+	}
+<endif>
+>>
